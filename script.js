@@ -586,13 +586,26 @@ $('exportDocx').onclick=()=>{
       }));
       children.push(para(''));
 
-      if(r.over){
+      if(r.over && r.reduction < r.pension){
+        // Suspension partielle : reprise du texte à trous validé.
+        const paymentMonth = payLabel;
+        const insuredName = ($('firstName').value + ' ' + $('name').value).trim() || 'l’assurée';
+        const monthStart = `${r.pay.getFullYear()}-${String(r.pay.getMonth() + 1).padStart(2, '0')}-01`;
+        const applicablePiBand = getPiBands()
+          .filter(b => b.date <= monthStart && Number.isFinite(b.amount))
+          .sort((a, b) => a.date.localeCompare(b.date))
+          .at(-1);
+        const revaluationYear = applicablePiBand?.date.match(/^(\d{4})-04-01$/)?.[1];
+        const revaluationNote = revaluationYear
+          ? ` (montant revalorisé au 01/04/${revaluationYear})`
+          : '';
+
         children.push(para(
-          `Le total de la pension théorique et des ressources de l’assuré étant supérieur au montant de son seuil de comparaison (${fmt(r.threshold)}), le service de sa pension est suspendu le ${payLabel}.`
+          `Le total de la pension théorique et des ressources de l’assurée étant supérieur au montant de son seuil de comparaison (${fmt(r.threshold)}), le service de sa pension est suspendu pour la mensualité de ${paymentMonth}.`
         ));
 
         children.push(para(
-          'Pour déterminer s’il s’agit d’une suspension partielle ou totale, il convient de calculer le montant de la réduction mensuelle et de le comparer au montant théorique de la pension d’invalidité de l’assuré, ce en application du III des dispositions précitées selon lequel « le montant des arrérages mensuels servis au titre des trois mois civils suivants est réduit à hauteur d’un douzième de 50 % du montant du dépassement constaté ».'
+          'Pour déterminer s’il s’agit d’une suspension partielle ou totale, il convient de calculer le montant de la réduction mensuelle et de le comparer au montant théorique de la pension d’invalidité de l’assurée, ce en application du III des dispositions précitées selon lequel « le montant des arrérages mensuels servis au titre des trois mois civils suivants est réduit à hauteur d’un douzième de 50 % du montant du dépassement constaté ». '
         ));
 
         children.push(para(
@@ -606,27 +619,28 @@ $('exportDocx').onclick=()=>{
         ]));
 
         children.push(para(
-          `Le montant de la pension théorique applicable à la mensualité de ${payLabel} est de ${fmt(r.pension)}.`
+          `Le montant de la pension théorique de ${insuredName} est de ${fmt(r.pension)}${revaluationNote}.`
         ));
 
-        if(r.reduction<r.pension){
-          children.push(boldPara([
-            `Par conséquent, seuls des arrérages bruts de ${fmt(r.arrears)} étaient dus pour la mensualité de ${payLabel} [${fmt(r.pension)} − ${fmt(r.reduction)} = ${fmt(r.arrears)}].`
-          ]));
-        }else{
-          children.push(boldPara([
-            `Par conséquent, aucun arrérage brut n’était dû pour la mensualité de ${payLabel}, le montant de la réduction mensuelle (${fmt(r.reduction)}) étant supérieur ou égal au montant théorique de la pension (${fmt(r.pension)}).`
-          ]));
-        }
-      }else{
+        children.push(boldPara([
+          `Par conséquent, seuls des arrérages bruts de ${fmt(r.arrears)} étaient dus pour la mensualité de ${paymentMonth} [${fmt(r.pension)} − ${fmt(r.reduction)} = ${fmt(r.arrears)}].`
+        ]));
+      }else if(r.over){
+        // Suspension totale : ne pas utiliser le texte réservé à la suspension partielle.
         children.push(para(
-          `Le total de la pension théorique et des ressources de l’assuré (${fmt(r.total)}) ne dépasse pas le seuil de comparaison (${fmt(r.threshold)}). Aucun dépassement n’est constaté pour la mensualité de ${payLabel} ; aucune réduction au titre de la comparaison des ressources n’est donc appliquée.`
+          `Le total de la pension théorique et des ressources de l’assurée (${fmt(r.total)}) étant supérieur au seuil de comparaison (${fmt(r.threshold)}), un dépassement de ${fmt(r.excess)} est constaté pour la mensualité de ${payLabel}.`
+        ));
+        children.push(para(
+          `La réduction mensuelle calculée, correspondant à 1/12ème de 50 % du dépassement constaté (${fmt(r.excess)} × 50 % / 12), s’élève à ${fmt(r.reduction)}.`
         ));
         children.push(boldPara([
-          `Par conséquent, les arrérages bruts théoriques dus pour la mensualité de ${payLabel} s’élèvent à ${fmt(r.pension)}.`
+          `Le montant de cette réduction étant supérieur ou égal au montant théorique de la pension applicable (${fmt(r.pension)}), aucun arrérage brut n’était dû pour la mensualité de ${payLabel}.`
         ]));
+      }else{
+        children.push(para(
+          `Le total de la pension théorique et des ressources de l’assurée (${fmt(r.total)}) ne dépasse pas le seuil de comparaison (${fmt(r.threshold)}). Aucun dépassement n’est constaté pour la mensualité de ${payLabel} ; aucune réduction au titre de la comparaison des ressources n’est donc appliquée.`
+        ));
       }
-
       children.push(para(''));
     }
 
