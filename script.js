@@ -47,11 +47,47 @@ function isoToFrench(v){
   return `${v.slice(8,10)}/${v.slice(5,7)}/${v.slice(0,4)}`;
 }
 
-function dateToISO(v){
-  const x=(v||'').trim();
-  if(/^\d{8}$/.test(x))return `${x.slice(4,8)}-${x.slice(2,4)}-${x.slice(0,2)}`;
-  if(/^\d{2}\/\d{2}\/\d{4}$/.test(x))return `${x.slice(6,10)}-${x.slice(3,5)}-${x.slice(0,2)}`;
-  if(/^\d{4}-\d{2}-\d{2}$/.test(x))return x;
+
+function dateToISO(v) {
+  const x = (v || '').trim();
+
+  if (/^\d{8}$/.test(x)) {
+    const year = x.slice(4, 8);
+    const month = x.slice(2, 4);
+    const day = x.slice(0, 2);
+    return `${year}-${month}-${day}`;
+  }
+
+  const match = x.match(/^(\d{2})\/(\d{2})\/(\d{2}|\d{4})$/);
+
+  if (match) {
+    const day = match[1];
+    const month = match[2];
+    let year = match[3];
+
+    if (year.length === 2) {
+      const y = Number(year);
+      year = String(y <= 49 ? 2000 + y : 1900 + y);
+    }
+
+    const iso = `${year}-${month}-${day}`;
+    const date = new Date(`${iso}T00:00:00`);
+
+    if (
+      date.getFullYear() !== Number(year) ||
+      date.getMonth() + 1 !== Number(month) ||
+      date.getDate() !== Number(day)
+    ) {
+      return '';
+    }
+
+    return iso;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(x)) {
+    return x;
+  }
+
   return '';
 }
 
