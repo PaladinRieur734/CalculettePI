@@ -441,105 +441,211 @@ $('exportXlsx').onclick=()=>{
 
 $('exportDocx').onclick=()=>{
   if(!results.length)return;
+
   const script=document.createElement('script');
   script.src='https://unpkg.com/docx@8.5.0/build/index.umd.js';
 
   script.onload=async()=>{
-    const {Document,Packer,Paragraph,TextRun,Table,TableRow,TableCell,WidthType,AlignmentType,HeadingLevel}=docx;
+    const {
+      Document,Packer,Paragraph,TextRun,Table,TableRow,TableCell,
+      WidthType,AlignmentType,HeadingLevel,BorderStyle,ShadingType
+    }=docx;
+
     const children=[];
+    const font='Arial Narrow';
+    const size=22; // 11 points
+
+    const run=(text,options={})=>new TextRun({
+      text:String(text),
+      font,
+      size,
+      ...options
+    });
+
+    const para=(text='',options={})=>new Paragraph({
+      children:[run(text)],
+      spacing:{after:100,line:260},
+      ...options
+    });
+
+    const boldPara=(parts,options={})=>new Paragraph({
+      children:parts.map(p=>typeof p==='string'?run(p):run(p.text,p.options||{})),
+      spacing:{after:100,line:260},
+      ...options
+    });
+
+    const border={style:BorderStyle.SINGLE,size:4,color:'000000'};
+    const borders={top:border,bottom:border,left:border,right:border};
+    const cell=(text,{bold=false,align=AlignmentType.CENTER,fill=null,width=25}={})=>new TableCell({
+      width:{size:width,type:WidthType.PERCENTAGE},
+      borders,
+      margins:{top:70,bottom:70,left:75,right:75},
+      ...(fill?{shading:{fill,type:ShadingType.CLEAR}}:{}),
+      children:[new Paragraph({
+        alignment:align,
+        spacing:{before:0,after:0,line:240},
+        children:[run(text,{bold})]
+      })]
+    });
 
     children.push(new Paragraph({
-      text:'ANNEXE — CALCUL DES COMPARAISONS DE PENSION D’INVALIDITÉ',
-      heading:HeadingLevel.HEADING_1,
       alignment:AlignmentType.CENTER,
-      spacing:{after:160}
+      spacing:{after:220},
+      children:[run('ANNEXE — CALCUL DES COMPARAISONS DE PENSION D’INVALIDITÉ',{bold:true,size:24})]
     }));
 
     if($('firstName').value.trim()||$('name').value.trim()){
       children.push(new Paragraph({
+        spacing:{after:180},
         children:[
-          new TextRun({text:'Assuré : ',bold:true}),
-          new TextRun(($('firstName').value+' '+$('name').value).trim())
-        ],
-        spacing:{after:180}
+          run('Assuré : ',{bold:true}),
+          run(($('firstName').value+' '+$('name').value).trim())
+        ]
       }));
     }
 
     for(const r of results){
-      children.push(new Paragraph({
-        text:'CALCUL DU PAIEMENT DE '+dateLabel(r.pay).toUpperCase(),
-        heading:HeadingLevel.HEADING_2,
-        alignment:AlignmentType.CENTER,
-        spacing:{before:240,after:120}
+      const payLabel=dateLabel(r.pay);
+      const payCapital=payLabel.toLocaleUpperCase('fr-FR');
+      // Titre de mensualité encadré, comme dans les modèles CRAMIF.
+      children.push(new Table({
+        width:{size:100,type:WidthType.PERCENTAGE},
+        rows:[new TableRow({children:[new TableCell({
+          borders,
+          margins:{top:55,bottom:55,left:80,right:80},
+          children:[new Paragraph({
+            alignment:AlignmentType.CENTER,
+            spacing:{before:0,after:0,line:240},
+            children:[run('CALCUL DU PAIEMENT DE LA MENSUALITÉ DE '+payCapital,{bold:true})]
+          })]
+        })]})]
       }));
+      children.push(para(''));
 
-      children.push(new Paragraph({
-        children:[new TextRun('Les ressources prises en compte sont celles perçues durant la période allant du 13e mois au 2e mois précédant la mensualité à payer.')],
-        spacing:{after:120}
-      }));
+      children.push(para(
+        'Les ressources prises en compte sont celles perçues durant la période de référence allant du 13e mois au 2e mois précédant la mensualité à payer.'
+      ));
 
-      const data=[
-        ['Période de référence','Montant théorique pension d’invalidité','Revenus d’activité','Revenus de remplacement'],
-        ...r.detail.map(d=>[monthLabel(d.date),fmt(d.pi),fmt(d.activity),fmt(d.replacement)]),
-        ['SOUS-TOTAL',fmt(r.sumPi),fmt(r.sumA),fmt(r.sumR)],
-        ['TOTAL DES RESSOURCES','','',fmt(r.total)],
-        ['Seuil de comparaison',fmt(r.threshold),'',''],
-        ['DÉPASSEMENT',fmt(r.excess),'','']
+      const header=['Période de référence','Montant théorique de la pension d’invalidité','Revenus d’activité','Revenus de remplacement'];
+      const rows=[
+        new TableRow({tableHeader:true,children:header.map((v,i)=>cell(v,{bold:true,align:AlignmentType.CENTER,width:[22,30,24,24][i]}))})
       ];
 
-      const table=new Table({
-        width:{size:100,type:WidthType.PERCENTAGE},
-        rows:data.map((row,i)=>new TableRow({
-          children:row.map(cell=>new TableCell({
-            children:[new Paragraph({
-              text:String(cell),
-              alignment:i===0?AlignmentType.CENTER:AlignmentType.RIGHT
-            })],
-            width:{size:25,type:WidthType.PERCENTAGE}
-          }))
-        }))
-      });
-
-      children.push(table);
-      children.push(new Paragraph({text:''}));
-
-      if(r.over){
-        children.push(new Paragraph({
-          text:`Le total de la pension théorique et des ressources (${fmt(r.total)}) est supérieur au seuil de comparaison (${fmt(r.threshold)}).`,
-          spacing:{before:120,after:100}
-        }));
-
-        children.push(new Paragraph({
-          children:[
-            new TextRun('La pension d’invalidité doit donc être réduite à hauteur de 1/12e de 50 % du dépassement constaté, soit de '),
-            new TextRun({text:fmt(r.reduction),bold:true}),
-            new TextRun(` pour la mensualité de ${dateLabel(r.pay)}, selon le calcul suivant : ${fmt(r.excess)} (dépassement) × 50 % / 12.`)
-          ],
-          spacing:{after:100}
-        }));
-
-        if(r.reduction>=r.pension){
-          children.push(new Paragraph({
-            text:`Le montant de la réduction étant supérieur ou égal au montant théorique de la pension (${fmt(r.pension)}), aucuns arrérages théoriques ne sont dus pour cette mensualité.`,
-            spacing:{after:100}
-          }));
-        }else{
-          children.push(new Paragraph({
-            text:`Le montant de la réduction étant inférieur au montant théorique de la pension (${fmt(r.pension)}), des arrérages théoriques de ${fmt(r.arrears)} restent dus pour cette mensualité.`,
-            spacing:{after:100}
-          }));
-        }
-      }else{
-        children.push(new Paragraph({
-          text:`Le total de la pension théorique et des ressources (${fmt(r.total)}) ne dépasse pas le seuil de comparaison (${fmt(r.threshold)}). Aucune réduction au titre de ce calcul n’est appliquée.`,
-          spacing:{after:100}
-        }));
+      for(const d of r.detail){
+        rows.push(new TableRow({children:[
+          cell(monthLabel(d.date),{align:AlignmentType.CENTER,width:22}),
+          cell(fmt(d.pi),{align:AlignmentType.RIGHT,width:30}),
+          cell(fmt(d.activity),{align:AlignmentType.RIGHT,width:24}),
+          cell(fmt(d.replacement),{align:AlignmentType.RIGHT,width:24})
+        ]}));
       }
 
-      children.push(new Paragraph({text:''}));
+      // Sous-total blanc, total des ressources grisé, seuil sans fond,
+      // dépassement grisé : même hiérarchie visuelle que le modèle fourni.
+      rows.push(new TableRow({children:[
+        cell('SOUS-TOTAL',{bold:true,align:AlignmentType.LEFT,width:22}),
+        cell(fmt(r.sumPi),{bold:true,align:AlignmentType.RIGHT,width:30}),
+        cell(fmt(r.sumA),{bold:true,align:AlignmentType.RIGHT,width:24}),
+        cell(fmt(r.sumR),{bold:true,align:AlignmentType.RIGHT,width:24})
+      ]}));
+
+      rows.push(new TableRow({children:[
+        cell('TOTAL DES RESSOURCES',{bold:true,fill:'D9D9D9',align:AlignmentType.LEFT,width:22}),
+        new TableCell({
+          columnSpan:3,
+          width:{size:78,type:WidthType.PERCENTAGE},
+          borders,
+          shading:{fill:'D9D9D9',type:ShadingType.CLEAR},
+          margins:{top:70,bottom:70,left:75,right:75},
+          children:[new Paragraph({
+            alignment:AlignmentType.RIGHT,
+            spacing:{before:0,after:0,line:240},
+            children:[run(fmt(r.total),{bold:true})]
+          })]
+        })
+      ]}));
+
+      rows.push(new TableRow({children:[
+        cell('Seuil de comparaison',{bold:true,align:AlignmentType.LEFT,width:22}),
+        cell(fmt(r.threshold),{align:AlignmentType.RIGHT,width:30}),
+        cell('',{width:24}),
+        cell('',{width:24})
+      ]}));
+
+      rows.push(new TableRow({children:[
+        cell('DÉPASSEMENT',{bold:true,fill:'D9D9D9',align:AlignmentType.LEFT,width:22}),
+        cell(fmt(r.excess),{bold:true,fill:'D9D9D9',align:AlignmentType.RIGHT,width:30}),
+        cell('',{fill:'D9D9D9',width:24}),
+        cell('',{fill:'D9D9D9',width:24})
+      ]}));
+
+      children.push(new Table({
+        width:{size:100,type:WidthType.PERCENTAGE},
+        columnWidths:[2200,3000,2400,2400],
+        rows
+      }));
+      children.push(para(''));
+
+      if(r.over){
+        children.push(para(
+          `Le total de la pension théorique et des ressources de l’assuré étant supérieur au montant de son seuil de comparaison (${fmt(r.threshold)}), le service de sa pension est suspendu le ${payLabel}.`
+        ));
+
+        children.push(para(
+          'Pour déterminer s’il s’agit d’une suspension partielle ou totale, il convient de calculer le montant de la réduction mensuelle et de le comparer au montant théorique de la pension d’invalidité de l’assuré, ce en application du III des dispositions précitées selon lequel « le montant des arrérages mensuels servis au titre des trois mois civils suivants est réduit à hauteur d’un douzième de 50 % du montant du dépassement constaté ».'
+        ));
+
+        children.push(para(
+          'Si le montant de la réduction mensuelle est inférieur au montant théorique de la pension d’invalidité, des arrérages réduits sont dus. Si le montant de la réduction mensuelle est supérieur ou égal au montant théorique de la pension d’invalidité, aucun arrérage n’est dû.'
+        ));
+
+        children.push(boldPara([
+          'En l’espèce, le montant de la réduction mensuelle calculée est de ',
+          {text:fmt(r.reduction),options:{bold:true}},
+          `, correspondant à 1/12ème de 50 % du dépassement constaté (${fmt(r.excess)} (ressources − seuil de comparaison) × 50 % / 12).`
+        ]));
+
+        children.push(para(
+          `Le montant de la pension théorique applicable à la mensualité de ${payLabel} est de ${fmt(r.pension)}.`
+        ));
+
+        if(r.reduction<r.pension){
+          children.push(boldPara([
+            `Par conséquent, seuls des arrérages bruts de ${fmt(r.arrears)} étaient dus pour la mensualité de ${payLabel} [${fmt(r.pension)} − ${fmt(r.reduction)} = ${fmt(r.arrears)}].`
+          ]));
+        }else{
+          children.push(boldPara([
+            `Par conséquent, aucun arrérage brut n’était dû pour la mensualité de ${payLabel}, le montant de la réduction mensuelle (${fmt(r.reduction)}) étant supérieur ou égal au montant théorique de la pension (${fmt(r.pension)}).`
+          ]));
+        }
+      }else{
+        children.push(para(
+          `Le total de la pension théorique et des ressources de l’assuré (${fmt(r.total)}) ne dépasse pas le seuil de comparaison (${fmt(r.threshold)}). Aucun dépassement n’est constaté pour la mensualité de ${payLabel} ; aucune réduction au titre de la comparaison des ressources n’est donc appliquée.`
+        ));
+        children.push(boldPara([
+          `Par conséquent, les arrérages bruts théoriques dus pour la mensualité de ${payLabel} s’élèvent à ${fmt(r.pension)}.`
+        ]));
+      }
+
+      children.push(para(''));
     }
 
-    const doc=new Document({sections:[{properties:{},children}]});
+    const doc=new Document({
+      styles:{
+        default:{
+          document:{run:{font,size},paragraph:{spacing:{after:100,line:260}}}
+        }
+      },
+      sections:[{
+        properties:{
+          page:{
+            margin:{top:850,bottom:850,left:850,right:850}
+          }
+        },
+        children
+      }]
+    });
+
     const blob=await Packer.toBlob(doc);
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
@@ -549,6 +655,7 @@ $('exportDocx').onclick=()=>{
     setTimeout(()=>URL.revokeObjectURL(url),1500);
   };
 
+  script.onerror=()=>showError('Impossible de charger la bibliothèque nécessaire à la création du document Word. Vérifiez votre connexion internet.');
   document.head.appendChild(script);
 };
 
