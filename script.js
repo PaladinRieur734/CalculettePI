@@ -1,3 +1,95 @@
+Chargement des messages plus anciens…
+Ne touche a rien d'autre au tableau des annexes mais j'ai besoin que le total des ressources soit centré
+
+C’est fait. J’ai modifié uniquement l’alignement de la ligne « TOTAL DES RESSOURCES » dans le tableau de l’annexe Word : le libellé et le montant total sont maintenant centrés. Le fond gris, les bordures, les autres lignes et le reste de la calculette restent inchangés.
+
+Tu peux remplacer uniquement script.js sur GitHub.
+
+    Ouvrir le JavaScript complet corrigé pour copier-coller
+
+Récupérer le site complet en ZIP
+
+Le contrôle de syntaxe JavaScript est passé avec succès.
+script_complet_corrige.txtDocument
+j'arrive pas a télécharger le site complet
+
+Pas de souci. On va éviter le ZIP si le téléchargement bloque. Comme tu travailles sur GitHub, le plus simple est de récupérer les fichiers séparément.
+
+Tu as deux possibilités :
+
+    Pour appliquer uniquement le centrage du total des ressources, remplace seulement script.js : tu n’as pas besoin de télécharger tout le site.
+
+    Pour récupérer le site complet, il faut disposer de index.html, script.js et style.css ensemble.
+
+Voici à nouveau les liens directs :
+
+Site complet — ZIP
+
+Télécharger les 3 fichiers du site
+
+JavaScript seul
+
+Ouvrir le code complet à copier
+
+Page HTML
+
+Récupérer index.html
+
+Si le ZIP ne se télécharge toujours pas : fais un clic droit sur le lien « Télécharger les 3 fichiers du site », puis sélectionne « Enregistrer le lien sous… ».
+
+Si ton navigateur professionnel bloque encore le téléchargement, dis-moi exactement ce qui se passe lorsque tu cliques : rien ne se passe, une erreur apparaît ou le fichier se télécharge mais ne s’ouvre pas. Je te guiderai selon le cas.
+script_complet_corrige.txtDocument
+index.htmlHTML
+mets moi les 3 fichiers à telecharger
+
+Voici les 3 fichiers séparés à télécharger, pour que tu puisses les déposer directement sur GitHub.
+
+1. index.html
+
+La page principale du site.
+
+Télécharger index.html
+
+2. script.js
+
+Les calculs, les colonnes personnalisées et les exports Word et Excel, avec le centrage du total des ressources.
+
+Télécharger script.js
+
+3. style.css
+
+La mise en forme du site.
+
+Télécharger style.css
+
+Sur GitHub : ouvre ton dépôt, puis ajoute ou remplace chacun des trois fichiers en conservant exactement ces noms. Ils doivent se trouver au même niveau dans le dépôt.
+
+Je te conseille de conserver une copie de tes fichiers actuels avant de les remplacer.
+index.htmlHTML
+script.jsCode
+style.cssCode
+il y a que le java qui ne se telecharge pas
+Réfléchi pendant 9s
+
+D’accord, le problème vient donc uniquement du fichier JavaScript. Je t’ai préparé le même code avec une extension .txt, plus facile à ouvrir et à copier.
+
+JavaScript complet — version texte
+
+734 lignes · Code intégral
+
+Ouvrir le fichier et copier le code
+Comment faire
+
+    Clique sur le lien ci-dessus.
+
+    Si le code s'affiche, fais Ctrl + A, puis Ctrl + C.
+
+    Sur GitHub, ouvre script.js, clique sur le crayon pour modifier le fichier.
+
+    Remplace tout le contenu, puis valide avec Commit changes.
+
+Le contenu est identique à celui de script.js : seule l’extension du fichier change pour faciliter l’accès.
+script_a_copier.txtDocument
 const $=id=>document.getElementById(id);
 const fmt=n=>Number(n||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';
 
@@ -129,6 +221,35 @@ function initBands(){
 $('addThreshold').onclick=()=>bandRow($('thresholdBands'),'2025-04-01','','Date d’effet du seuil');
 
 let incomeRows={},results=[],piBandsByDate={},pensionPaymentOverrides={};
+let customResourceColumns=[];
+let nextCustomColumnId=1;
+
+function addCustomResourceColumn(){
+  const suggested=`Autre ressource ${customResourceColumns.length+1}`;
+  const name=window.prompt('Nom de la nouvelle colonne de ressources :',suggested);
+  if(name===null)return;
+  const clean=name.trim();
+  if(!clean){window.alert('Le nom de la colonne ne peut pas être vide.');return;}
+  if(['Mois de ressources','Montant de pension retenu (€) — modifiable','Revenus d’activité (€)','Revenus de remplacement (IJ, chômage…) (€)'].some(x=>x.toLocaleLowerCase('fr-FR')===clean.toLocaleLowerCase('fr-FR')) || customResourceColumns.some(c=>c.name.toLocaleLowerCase('fr-FR')===clean.toLocaleLowerCase('fr-FR'))){
+    window.alert('Ce nom est déjà utilisé. Choisissez un nom différent.');return;
+  }
+  customResourceColumns.push({id:`custom${nextCustomColumnId++}`,name:clean});
+  renderIncomeMonths();
+  if(results.length){$('results').style.display='none';$('exportXlsx').disabled=true;$('exportDocx').disabled=true;}
+}
+
+if($('addResourceColumn'))$('addResourceColumn').onclick=addCustomResourceColumn;
+
+function updateIncomeTableHeader(){
+  const head=$('incomeTable').querySelector('thead');
+  head.innerHTML='';
+  const row=document.createElement('tr');
+  ['Mois de ressources','Montant de pension retenu (€) — modifiable','Revenus d’activité (€)','Revenus de remplacement (IJ, chômage…) (€)',...customResourceColumns.map(c=>c.name)].forEach(label=>{
+    const th=document.createElement('th');th.textContent=label;row.appendChild(th);
+  });
+  head.appendChild(row);
+}
+
 
 function getBands(id){
   return [...$(id).querySelectorAll('.band-row')].map(r=>({
@@ -221,37 +342,45 @@ function renderIncomeMonths(){
       tb=$('incomeTable').querySelector('tbody');
 
     const prior={...incomeRows};
+    updateIncomeTableHeader();
     tb.innerHTML='';
     incomeRows={};
 
     for(let d=first;d<=lastResource;d=addMonths(d,1)){
       const k=monthKey(d);
-      incomeRows[k]=prior[k]||{activity:'',replacement:''};
+      incomeRows[k]=prior[k]||{activity:'',replacement:'',custom:{}};
+      incomeRows[k].custom=incomeRows[k].custom||{};
 
       const tr=document.createElement('tr');
       const autoPension=piValue(d);
       const shownPension=incomeRows[k].pension!==undefined&&incomeRows[k].pension!==''?incomeRows[k].pension:fmtInput(autoPension);
       const isResourceMonth=d<=lastResource;
-
-      tr.innerHTML=`<td>${isResourceMonth?monthLabel(d):`${monthLabel(d)} — pension de la mensualité (pas de ressources à saisir)`}</td><td>${euroInput(shownPension)}</td><td>${isResourceMonth?euroInput(incomeRows[k].activity):'—'}</td><td>${isResourceMonth?euroInput(incomeRows[k].replacement):'—'}</td>`;
       tr.dataset.month=k;
-
+      const values=[
+        isResourceMonth?monthLabel(d):`${monthLabel(d)} — pension de la mensualité (pas de ressources à saisir)`,
+        null,null,null
+      ];
+      const monthCell=document.createElement('td');monthCell.textContent=values[0];tr.appendChild(monthCell);
+      const pensionCell=document.createElement('td');pensionCell.innerHTML=euroInput(shownPension);tr.appendChild(pensionCell);
+      const activityCell=document.createElement('td');activityCell.innerHTML=isResourceMonth?euroInput(incomeRows[k].activity):'—';tr.appendChild(activityCell);
+      const replacementCell=document.createElement('td');replacementCell.innerHTML=isResourceMonth?euroInput(incomeRows[k].replacement):'—';tr.appendChild(replacementCell);
+      for(const col of customResourceColumns){
+        const td=document.createElement('td');
+        td.innerHTML=isResourceMonth?euroInput(incomeRows[k].custom[col.id]??''):'—';
+        tr.appendChild(td);
+      }
       const ins=tr.querySelectorAll('input');
       ins.forEach(attachMoneyFormatter);
       ins[0].oninput=()=>incomeRows[k].pension=ins[0].value;
-
       if(isResourceMonth){
         ins[1].oninput=()=>incomeRows[k].activity=ins[1].value;
         ins[2].oninput=()=>incomeRows[k].replacement=ins[2].value;
+        customResourceColumns.forEach((col,i)=>{ins[3+i].oninput=()=>incomeRows[k].custom[col.id]=ins[3+i].value;});
       }
-
       tb.appendChild(tr);
     }
     return true;
-  }catch(e){
-    showError(e.message);
-    return false;
-  }
+  }catch(e){showError(e.message);return false;}
 }
 
 function refreshPensionCells(){
@@ -305,21 +434,23 @@ function calculate(){
     }
 
     results=pays.map(pay=>{
-      let sumPi=0,sumA=0,sumR=0,detail=[];
+      let sumPi=0,sumA=0,sumR=0,customSums=Object.fromEntries(customResourceColumns.map(c=>[c.id,0])),detail=[];
 
       for(let d=addMonths(pay,-13);d<=addMonths(pay,-2);d=addMonths(d,1)){
-        const k=monthKey(d),v=incomeRows[k]||{activity:'',replacement:''},
+        const k=monthKey(d),v=incomeRows[k]||{activity:'',replacement:'',custom:{}},
           p=pensionForMonth(d),
           a=Number.isFinite(parseMoney(v.activity))?parseMoney(v.activity):0,
-          r=Number.isFinite(parseMoney(v.replacement))?parseMoney(v.replacement):0;
+          r=Number.isFinite(parseMoney(v.replacement))?parseMoney(v.replacement):0,
+          customValues=Object.fromEntries(customResourceColumns.map(c=>{const raw=v.custom?.[c.id];return [c.id,Number.isFinite(parseMoney(raw))?parseMoney(raw):0];}));
 
         sumPi+=p;
         sumA+=a;
         sumR+=r;
-        detail.push({date:d,pi:p,activity:a,replacement:r});
+        for(const col of customResourceColumns)customSums[col.id]+=customValues[col.id];
+        detail.push({date:d,pi:p,activity:a,replacement:r,custom:customValues});
       }
 
-      const total=sumPi+sumA+sumR,
+      const total=sumPi+sumA+sumR+Object.values(customSums).reduce((a,b)=>a+b,0),
         threshold=bandValue(th,pay),
         excess=Math.max(0,total-threshold),
         reduction=excess*0.5/12,
@@ -327,15 +458,18 @@ function calculate(){
         pension=(Object.prototype.hasOwnProperty.call(pensionPaymentOverrides,monthKey(pay))?pensionPaymentOverrides[monthKey(pay)]:basePension),
         arrears=Math.max(0,pension-reduction);
 
-      return {pay,detail,sumPi,sumA,sumR,total,threshold,excess,reduction,pension,arrears,over:total>threshold};
+      return {pay,detail,sumPi,sumA,sumR,customSums,total,threshold,excess,reduction,pension,arrears,over:total>threshold};
     });
 
+    const resultHead=$('resultTable').querySelector('thead tr');
+    resultHead.innerHTML='';
+    ['Mensualité','Total pension théorique','Revenus d’activité','Revenus de remplacement',...customResourceColumns.map(c=>c.name),'Total ressources','Seuil','Dépassement','Réduction mensuelle','Pension théorique de la mensualité','Arrérages théoriques après réduction'].forEach(label=>{const th=document.createElement('th');th.textContent=label;resultHead.appendChild(th);});
     const tbody=$('resultTable').querySelector('tbody');
     tbody.innerHTML='';
 
     for(const r of results){
       const tr=document.createElement('tr');
-      tr.innerHTML=`<td>${dateLabel(r.pay)}</td><td>${fmt(r.sumPi)}</td><td>${fmt(r.sumA)}</td><td>${fmt(r.sumR)}</td><td><b>${fmt(r.total)}</b></td><td>${fmt(r.threshold)}</td><td>${fmt(r.excess)}</td><td>${fmt(r.reduction)}</td><td><input class="money result-pension" type="text" inputmode="decimal" data-pay="${monthKey(r.pay)}" value="${fmt(r.pension)}" style="min-width:105px;width:100%;box-sizing:border-box"></td><td class="result-arrears"><b>${fmt(r.arrears)}</b></td>`;
+      tr.innerHTML=`<td>${dateLabel(r.pay)}</td><td>${fmt(r.sumPi)}</td><td>${fmt(r.sumA)}</td><td>${fmt(r.sumR)}</td>${customResourceColumns.map(c=>`<td>${fmt(r.customSums[c.id]||0)}</td>`).join('')}<td><b>${fmt(r.total)}</b></td><td>${fmt(r.threshold)}</td><td>${fmt(r.excess)}</td><td>${fmt(r.reduction)}</td><td><input class="money result-pension" type="text" inputmode="decimal" data-pay="${monthKey(r.pay)}" value="${fmt(r.pension)}" style="min-width:105px;width:100%;box-sizing:border-box"></td><td class="result-arrears"><b>${fmt(r.arrears)}</b></td>`;
 
       const pi=tr.querySelector('.result-pension');
       attachMoneyFormatter(pi);
@@ -401,24 +535,24 @@ $('exportXlsx').onclick=()=>{
       ['Prénom',$('firstName').value],
       ['Nom',$('name').value],
       [],
-      ['Mensualité','Total pension théorique','Revenus d’activité','Revenus de remplacement','Total ressources','Seuil de comparaison','Dépassement','Réduction mensuelle','Pension théorique applicable','Arrérages théoriques après réduction']
+      ['Mensualité','Total pension théorique','Revenus d’activité','Revenus de remplacement',...customResourceColumns.map(c=>c.name),'Total ressources','Seuil de comparaison','Dépassement','Réduction mensuelle','Pension théorique applicable','Arrérages théoriques après réduction']
     ];
 
     results.forEach(r=>summary.push([
-      dateLabel(r.pay),r.sumPi,r.sumA,r.sumR,r.total,r.threshold,r.excess,r.reduction,r.pension,r.arrears
+      dateLabel(r.pay),r.sumPi,r.sumA,r.sumR,...customResourceColumns.map(c=>r.customSums[c.id]||0),r.total,r.threshold,r.excess,r.reduction,r.pension,r.arrears
     ]));
 
     const ws=XLSX.utils.aoa_to_sheet(summary);
-    ws['!cols']=[{wch:22},{wch:22},{wch:18},{wch:24},{wch:18},{wch:20},{wch:18},{wch:20},{wch:25},{wch:30}];
+    ws['!cols']=[{wch:22},{wch:22},{wch:18},{wch:24},...customResourceColumns.map(c=>({wch:Math.min(28,Math.max(14,c.name.length+2))})),{wch:18},{wch:20},{wch:18},{wch:20},{wch:25},{wch:30}];
     XLSX.utils.book_append_sheet(wb,ws,'Synthèse');
 
     for(const r of results){
       const arr=[
         ['CALCUL DU PAIEMENT DE '+dateLabel(r.pay).toUpperCase()],
-        ['Période de référence','Montant théorique pension d’invalidité','Revenus d’activité','Revenus de remplacement'],
-        ...r.detail.map(d=>[monthLabel(d.date),d.pi,d.activity,d.replacement]),
-        ['SOUS-TOTAL',r.sumPi,r.sumA,r.sumR],
-        ['TOTAL DES RESSOURCES',null,null,r.total],
+        ['Période de référence','Montant théorique pension d’invalidité','Revenus d’activité','Revenus de remplacement',...customResourceColumns.map(c=>c.name)],
+        ...r.detail.map(d=>[monthLabel(d.date),d.pi,d.activity,d.replacement,...customResourceColumns.map(c=>d.custom?.[c.id]||0)]),
+        ['SOUS-TOTAL',r.sumPi,r.sumA,r.sumR,...customResourceColumns.map(c=>r.customSums[c.id]||0)],
+        ['TOTAL DES RESSOURCES',r.total,...Array(2+customResourceColumns.length).fill(null)],
         ['Seuil de comparaison',r.threshold],
         ['Dépassement',r.excess],
         ['50 % du dépassement',r.excess*.5],
@@ -428,7 +562,7 @@ $('exportXlsx').onclick=()=>{
       ];
 
       const sheet=XLSX.utils.aoa_to_sheet(arr);
-      sheet['!cols']=[{wch:32},{wch:34},{wch:24},{wch:28}];
+      sheet['!cols']=[{wch:32},{wch:34},{wch:24},{wch:28},...customResourceColumns.map(c=>({wch:Math.min(28,Math.max(14,c.name.length+2))}))];
       const name=dateLabel(r.pay).slice(0,25);
       XLSX.utils.book_append_sheet(wb,sheet,name);
     }
@@ -526,64 +660,41 @@ $('exportDocx').onclick=()=>{
         'Les ressources prises en compte sont celles perçues durant la période de référence allant du 13e mois au 2e mois précédant la mensualité à payer.'
       ));
 
-      const header=['Période de référence','Montant théorique de la pension d’invalidité','Revenus d’activité','Revenus de remplacement'];
-      const rows=[
-        new TableRow({tableHeader:true,children:header.map((v,i)=>cell(v,{bold:true,align:AlignmentType.CENTER,width:[22,30,24,24][i]}))})
-      ];
+      const columnNames=['Période de référence','Montant théorique de la pension d’invalidité','Revenus d’activité','Revenus de remplacement',...customResourceColumns.map(c=>c.name)];
+      const columnWidths=columnNames.map((_,i)=>i===0?18:i===1?25:i===2?17:i===3?20:Math.max(10,20/customResourceColumns.length));
+      const widthTotal=columnWidths.reduce((a,b)=>a+b,0);
+      const normalizedWidths=columnWidths.map(w=>w*100/widthTotal);
+      const cellWidths=normalizedWidths;
+      const rows=[new TableRow({tableHeader:true,children:columnNames.map((v,i)=>cell(v,{bold:true,align:AlignmentType.CENTER,width:cellWidths[i]}))})];
 
       for(const d of r.detail){
-        rows.push(new TableRow({children:[
-          cell(monthLabel(d.date),{align:AlignmentType.CENTER,width:22}),
-          cell(fmt(d.pi),{align:AlignmentType.RIGHT,width:30}),
-          cell(fmt(d.activity),{align:AlignmentType.RIGHT,width:24}),
-          cell(fmt(d.replacement),{align:AlignmentType.RIGHT,width:24})
-        ]}));
+        const vals=[monthLabel(d.date),fmt(d.pi),fmt(d.activity),fmt(d.replacement),...customResourceColumns.map(c=>fmt(d.custom?.[c.id]||0))];
+        rows.push(new TableRow({children:vals.map((v,i)=>cell(v,{align:i===0?AlignmentType.CENTER:AlignmentType.RIGHT,width:cellWidths[i]}))}));
       }
 
-      // Sous-total blanc, total des ressources grisé, seuil sans fond,
-      // dépassement grisé : même hiérarchie visuelle que le modèle fourni.
-      rows.push(new TableRow({children:[
-        cell('SOUS-TOTAL',{bold:true,align:AlignmentType.LEFT,width:22}),
-        cell(fmt(r.sumPi),{bold:true,align:AlignmentType.RIGHT,width:30}),
-        cell(fmt(r.sumA),{bold:true,align:AlignmentType.RIGHT,width:24}),
-        cell(fmt(r.sumR),{bold:true,align:AlignmentType.RIGHT,width:24})
-      ]}));
+      const subtotalValues=['SOUS-TOTAL',fmt(r.sumPi),fmt(r.sumA),fmt(r.sumR),...customResourceColumns.map(c=>fmt(r.customSums[c.id]||0))];
+      rows.push(new TableRow({children:subtotalValues.map((v,i)=>cell(v,{bold:true,align:i===0?AlignmentType.LEFT:AlignmentType.RIGHT,width:cellWidths[i]}))}));
 
       rows.push(new TableRow({children:[
-        cell('TOTAL DES RESSOURCES',{bold:true,fill:'D9D9D9',align:AlignmentType.LEFT,width:22}),
+        cell('TOTAL DES RESSOURCES',{bold:true,fill:'D9D9D9',align:AlignmentType.CENTER,width:cellWidths[0]}),
         new TableCell({
-          columnSpan:3,
-          width:{size:78,type:WidthType.PERCENTAGE},
+          columnSpan:columnNames.length-1,
+          width:{size:100-cellWidths[0],type:WidthType.PERCENTAGE},
           borders,
           shading:{fill:'D9D9D9',type:ShadingType.CLEAR},
           margins:{top:70,bottom:70,left:75,right:75},
-          children:[new Paragraph({
-            alignment:AlignmentType.RIGHT,
-            spacing:{before:0,after:0,line:240},
-            children:[run(fmt(r.total),{bold:true})]
-          })]
+          children:[new Paragraph({alignment:AlignmentType.CENTER,spacing:{before:0,after:0,line:240},children:[run(fmt(r.total),{bold:true})]})]
         })
       ]}));
 
-      rows.push(new TableRow({children:[
-        cell('Seuil de comparaison',{bold:true,align:AlignmentType.LEFT,width:22}),
-        cell(fmt(r.threshold),{align:AlignmentType.RIGHT,width:30}),
-        cell('',{width:24}),
-        cell('',{width:24})
-      ]}));
+      const metricRow=(label,value,fill=null,bold=false)=>new TableRow({children:[
+        cell(label,{bold,fill,align:AlignmentType.LEFT,width:cellWidths[0]}),
+        new TableCell({columnSpan:columnNames.length-1,width:{size:100-cellWidths[0],type:WidthType.PERCENTAGE},borders,...(fill?{shading:{fill,type:ShadingType.CLEAR}}:{}),margins:{top:70,bottom:70,left:75,right:75},children:[new Paragraph({alignment:AlignmentType.RIGHT,spacing:{before:0,after:0,line:240},children:[run(fmt(value),{bold})]})]})
+      ]});
+      rows.push(metricRow('Seuil de comparaison',r.threshold));
+      rows.push(metricRow('DÉPASSEMENT',r.excess,'D9D9D9',true));
 
-      rows.push(new TableRow({children:[
-        cell('DÉPASSEMENT',{bold:true,fill:'D9D9D9',align:AlignmentType.LEFT,width:22}),
-        cell(fmt(r.excess),{bold:true,fill:'D9D9D9',align:AlignmentType.RIGHT,width:30}),
-        cell('',{fill:'D9D9D9',width:24}),
-        cell('',{fill:'D9D9D9',width:24})
-      ]}));
-
-      children.push(new Table({
-        width:{size:100,type:WidthType.PERCENTAGE},
-        columnWidths:[2200,3000,2400,2400],
-        rows
-      }));
+      children.push(new Table({width:{size:100,type:WidthType.PERCENTAGE},columnWidths:normalizedWidths.map(w=>Math.round(w*100)),rows}));
       children.push(para(''));
 
       if(r.over && r.reduction < r.pension){
