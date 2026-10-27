@@ -596,8 +596,8 @@ $('exportDocx').onclick=()=>{
       ]}));
 
       const metricRow=(label,value,fill=null,bold=false)=>new TableRow({children:[
-        cell(label,{bold,fill,align:AlignmentType.LEFT,width:cellWidths[0]}),
-        new TableCell({columnSpan:columnNames.length-1,width:{size:100-cellWidths[0],type:WidthType.PERCENTAGE},borders,...(fill?{shading:{fill,type:ShadingType.CLEAR}}:{}),margins:{top:70,bottom:70,left:75,right:75},children:[new Paragraph({alignment:AlignmentType.RIGHT,spacing:{before:0,after:0,line:240},children:[run(fmt(value),{bold})]})]})
+        cell(label,{bold,fill,align:AlignmentType.CENTER,width:cellWidths[0]}),
+        new TableCell({columnSpan:columnNames.length-1,width:{size:100-cellWidths[0],type:WidthType.PERCENTAGE},borders,...(fill?{shading:{fill,type:ShadingType.CLEAR}}:{}),margins:{top:70,bottom:70,left:75,right:75},children:[new Paragraph({alignment:AlignmentType.CENTER,spacing:{before:0,after:0,line:240},children:[run(fmt(value),{bold})]})]})
       ]});
       rows.push(metricRow('Seuil de comparaison',r.threshold));
       rows.push(metricRow('DÉPASSEMENT',r.excess,'D9D9D9',true));
