@@ -168,9 +168,9 @@ function getBands(id){
 
 function getPiBands(){
   return [...$('piNeededTable').querySelectorAll('tbody tr')].map(r=>({
-    date:r.dataset.date,
-    amount:r.querySelector('input').value===''?NaN:parseMoney(r.querySelector('input').value)
-  })).sort((a,b)=>a.date.localeCompare(b.date));
+    date:dateToISO(r.querySelector('.effdate')?.value||''),
+    amount:r.querySelector('.amount')?.value===''?NaN:parseMoney(r.querySelector('.amount')?.value)
+  })).filter(x=>x.date).sort((a,b)=>a.date.localeCompare(b.date));
 }
 
 function bandValue(bands,d){
@@ -194,7 +194,10 @@ function renderNeededPensionMonths(){
       tb=$('piNeededTable').querySelector('tbody');
 
     const prior={};
-    for(const r of tb.querySelectorAll('tr'))prior[r.dataset.date]=r.querySelector('input').value;
+    for(const r of tb.querySelectorAll('tr')){
+      const date=dateToISO(r.querySelector('.effdate')?.value||'') || r.dataset.date || '';
+      prior[date]={amount:r.querySelector('.amount')?.value??''};
+    }
 
     tb.innerHTML='';
     let aprilYear=first.getFullYear();
@@ -202,34 +205,62 @@ function renderNeededPensionMonths(){
 
     const entries=[{
       date:`${monthKey(first)}-01`,
-      label:`Montant théorique de pension au 1er avril ${aprilYear}`
+      note:`Montant initial applicable à partir de ${monthLabel(first)}`
     }];
 
     for(let y=aprilYear+1;y<=last.getFullYear();y++){
       const d=new Date(y,3,1);
-      if(d<=last)entries.push({
-        date:`${y}-04-01`,
-        label:`Montant théorique revalorisé au 1er avril ${y}`
-      });
+      if(d<=last)entries.push({date:`${y}-04-01`,note:`Revalorisation annuelle — 1er avril ${y}`});
     }
 
-    entries.forEach((entry,i)=>{
+    // Préserver les dates personnalisées déjà présentes, y compris les changements en cours d'année.
+    for(const date of Object.keys(prior).filter(Boolean)){
+      if(!entries.some(e=>e.date===date))entries.push({date,note:'Date d’effet personnalisée'});
+    }
+    entries.sort((a,b)=>a.date.localeCompare(b.date));
+
+    entries.forEach(entry=>{
       const tr=document.createElement('tr');
       tr.dataset.date=entry.date;
-      tr.innerHTML=`<td>${entry.label}</td><td><input class="money" type="number" min="0" step="0.01" value="${prior[entry.date]??''}" placeholder="Montant à saisir (€)"></td><td>${i===0?`Montant théorique de la pension au 1er avril ${aprilYear}`:'Revalorisation annuelle'}</td>`;
-      attachMoneyFormatter(tr.querySelector('input'));
-      tr.querySelector('input').oninput=()=>refreshPensionCells();
+      tr.innerHTML=`<td><input class="effdate date-entry" type="text" inputmode="numeric" maxlength="10" placeholder="JJ/MM/AAAA" value="${isoToFrench(entry.date)}"></td><td><input class="amount money" type="text" inputmode="decimal" value="${prior[entry.date]?.amount??''}" placeholder="Montant à saisir (€)" autocomplete="off"></td><td class="pi-note">${entry.note}</td>`;
+      const dateInput=tr.querySelector('.effdate');
+      attachDateFormatter(dateInput);
+      dateInput.addEventListener('input',()=>{tr.dataset.date=dateToISO(dateInput.value);refreshPensionCells();});
+      dateInput.addEventListener('blur',()=>{
+        const iso=dateToISO(dateInput.value);
+        if(iso){tr.dataset.date=iso;tr.querySelector('.pi-note').textContent=entry.note.startsWith('Revalorisation annuelle')?entry.note:`Montant applicable à partir du ${isoToFrench(iso)}`;refreshPensionCells();}
+      });
+      attachMoneyFormatter(tr.querySelector('.amount'));
+      tr.querySelector('.amount').oninput=()=>refreshPensionCells();
       tb.appendChild(tr);
     });
 
-    $('piNeededNotice').textContent=`Renseignez le montant théorique de pension applicable au 1er avril qui couvre le premier mois de la période de ressources (${monthLabel(first)}), puis les montants théoriques revalorisés au 1er avril des années suivantes affichées. Exemple : si le premier mois de ressources est octobre 2023, indiquez le montant applicable au 1er avril 2023. Ces montants sont appliqués automatiquement aux mois de comparaison. En cas de changement exceptionnel en cours d’année (prise d’effet, suspension ou montant proratisé), vérifiez et adaptez les montants mensuels dans le tableau des ressources.`;
-
+    $('piNeededNotice').textContent='Les dates d’effet sont suggérées automatiquement selon la période contrôlée. Vous pouvez modifier une date ou ajouter autant de dates que nécessaire, notamment pour une revalorisation exceptionnelle en cours d’année (ex. juillet 2022). Chaque montant s’applique à partir de sa date d’effet jusqu’à la date suivante.';
     return true;
   }catch(e){
     showError(e.message);
     return false;
   }
 }
+
+function addPiEffectiveDate(){
+  const tb=$('piNeededTable').querySelector('tbody');
+  const tr=document.createElement('tr');
+  tr.dataset.date='';
+  tr.innerHTML=`<td><input class="effdate date-entry" type="text" inputmode="numeric" maxlength="10" placeholder="JJ/MM/AAAA"></td><td><input class="amount money" type="text" inputmode="decimal" placeholder="Montant à saisir (€)" autocomplete="off"></td><td class="pi-note">Date d’effet personnalisée</td>`;
+  const dateInput=tr.querySelector('.effdate');
+  attachDateFormatter(dateInput);
+  dateInput.addEventListener('input',()=>{tr.dataset.date=dateToISO(dateInput.value);refreshPensionCells();});
+  dateInput.addEventListener('blur',()=>{
+    const iso=dateToISO(dateInput.value);
+    if(iso){tr.dataset.date=iso;tr.querySelector('.pi-note').textContent=`Montant applicable à partir du ${isoToFrench(iso)}`;refreshPensionCells();}
+  });
+  attachMoneyFormatter(tr.querySelector('.amount'));
+  tr.querySelector('.amount').oninput=()=>refreshPensionCells();
+  tb.appendChild(tr);
+  dateInput.focus();
+}
+$('addPiEffectiveDate')?.addEventListener('click',addPiEffectiveDate);
 
 function getPeriod(){
   const s=dateToISO($('start').value),e=dateToISO($('end').value);
