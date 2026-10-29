@@ -168,7 +168,7 @@ function getBands(id){
 
 function getPiBands(){
   return [...$('piNeededTable').querySelectorAll('tbody tr')].map(r=>({
-    date:dateToISO(r.querySelector('.effdate')?.value||''),
+    date:dateToISO(r.querySelector('.effdate')?.value || r.dataset.date || ''),
     amount:r.querySelector('.amount')?.value===''?NaN:parseMoney(r.querySelector('.amount')?.value)
   })).filter(x=>x.date).sort((a,b)=>a.date.localeCompare(b.date));
 }
@@ -188,79 +188,49 @@ function piValue(d){
 
 function renderNeededPensionMonths(){
   try{
-    const pays=getPeriod(),
-      first=addMonths(pays[0],-13),
-      last=pays[pays.length-1],
-      tb=$('piNeededTable').querySelector('tbody');
-
+    const pays=getPeriod(), first=addMonths(pays[0],-13), last=pays[pays.length-1], tb=$('piNeededTable').querySelector('tbody');
     const prior={};
     for(const r of tb.querySelectorAll('tr')){
-      const date=dateToISO(r.querySelector('.effdate')?.value||'') || r.dataset.date || '';
-      prior[date]={amount:r.querySelector('.amount')?.value??''};
+      const date=dateToISO(r.querySelector('.effdate')?.value || r.dataset.date || '');
+      if(date) prior[date]=r.querySelector('.amount')?.value ?? '';
     }
-
-    tb.innerHTML='';
     let aprilYear=first.getFullYear();
     if(first.getMonth()<3)aprilYear--;
-
-    const entries=[{
-      date:`${monthKey(first)}-01`,
-      note:`Montant initial applicable à partir de ${monthLabel(first)}`
-    }];
-
+    const entries=[{date:`${monthKey(first)}-01`,label:`Montant initial applicable à partir de ${monthLabel(first)}`}];
     for(let y=aprilYear+1;y<=last.getFullYear();y++){
       const d=new Date(y,3,1);
-      if(d<=last)entries.push({date:`${y}-04-01`,note:`Revalorisation annuelle — 1er avril ${y}`});
+      if(d<=last)entries.push({date:`${y}-04-01`,label:`Revalorisation annuelle — 1er avril ${y}`});
     }
-
-    // Préserver les dates personnalisées déjà présentes, y compris les changements en cours d'année.
-    for(const date of Object.keys(prior).filter(Boolean)){
-      if(!entries.some(e=>e.date===date))entries.push({date,note:'Date d’effet personnalisée'});
-    }
+    for(const date of Object.keys(prior)) if(!entries.some(e=>e.date===date)) entries.push({date,label:'Date d’effet personnalisée'});
     entries.sort((a,b)=>a.date.localeCompare(b.date));
-
+    tb.innerHTML='';
     entries.forEach(entry=>{
-      const tr=document.createElement('tr');
-      tr.dataset.date=entry.date;
-      tr.innerHTML=`<td><input class="effdate date-entry" type="text" inputmode="numeric" maxlength="10" placeholder="JJ/MM/AAAA" value="${isoToFrench(entry.date)}"></td><td><input class="amount money" type="text" inputmode="decimal" value="${prior[entry.date]?.amount??''}" placeholder="Montant à saisir (€)" autocomplete="off"></td><td class="pi-note">${entry.note}</td>`;
-      const dateInput=tr.querySelector('.effdate');
-      attachDateFormatter(dateInput);
+      const tr=document.createElement('tr'); tr.dataset.date=entry.date;
+      tr.innerHTML=`<td><input class="effdate date-entry" type="text" inputmode="numeric" maxlength="10" placeholder="JJ/MM/AAAA" value="${isoToFrench(entry.date)}"></td><td><input class="amount money" type="text" inputmode="decimal" value="${prior[entry.date]??''}" placeholder="Montant à saisir (€)" autocomplete="off"></td><td>${entry.label}</td>`;
+      const dateInput=tr.querySelector('.effdate'); attachDateFormatter(dateInput);
       dateInput.addEventListener('input',()=>{tr.dataset.date=dateToISO(dateInput.value);refreshPensionCells();});
-      dateInput.addEventListener('blur',()=>{
-        const iso=dateToISO(dateInput.value);
-        if(iso){tr.dataset.date=iso;tr.querySelector('.pi-note').textContent=entry.note.startsWith('Revalorisation annuelle')?entry.note:`Montant applicable à partir du ${isoToFrench(iso)}`;refreshPensionCells();}
-      });
+      dateInput.addEventListener('blur',()=>{const iso=dateToISO(dateInput.value);if(iso){tr.dataset.date=iso;if(entry.label==='Date d’effet personnalisée')tr.cells[2].textContent=`Montant applicable à partir du ${isoToFrench(iso)}`;refreshPensionCells();}});
       attachMoneyFormatter(tr.querySelector('.amount'));
-      tr.querySelector('.amount').oninput=()=>refreshPensionCells();
+      tr.querySelector('.amount').addEventListener('input',()=>refreshPensionCells());
       tb.appendChild(tr);
     });
-
-    $('piNeededNotice').textContent='Les dates d’effet sont suggérées automatiquement selon la période contrôlée. Vous pouvez modifier une date ou ajouter autant de dates que nécessaire, notamment pour une revalorisation exceptionnelle en cours d’année (ex. juillet 2022). Chaque montant s’applique à partir de sa date d’effet jusqu’à la date suivante.';
+    $('piNeededNotice').textContent='Les dates d’effet sont proposées automatiquement selon la période d’indu. Vous pouvez modifier les dates suggérées et ajouter des dates personnalisées, notamment pour une revalorisation exceptionnelle en cours d’année. Chaque montant s’applique à partir de sa date d’effet jusqu’à la date suivante.';
     return true;
-  }catch(e){
-    showError(e.message);
-    return false;
-  }
+  }catch(e){showError(e.message);return false;}
 }
 
 function addPiEffectiveDate(){
-  const tb=$('piNeededTable').querySelector('tbody');
-  const tr=document.createElement('tr');
+  const tb=$('piNeededTable').querySelector('tbody'), tr=document.createElement('tr');
   tr.dataset.date='';
-  tr.innerHTML=`<td><input class="effdate date-entry" type="text" inputmode="numeric" maxlength="10" placeholder="JJ/MM/AAAA"></td><td><input class="amount money" type="text" inputmode="decimal" placeholder="Montant à saisir (€)" autocomplete="off"></td><td class="pi-note">Date d’effet personnalisée</td>`;
-  const dateInput=tr.querySelector('.effdate');
-  attachDateFormatter(dateInput);
+  tr.innerHTML=`<td><input class="effdate date-entry" type="text" inputmode="numeric" maxlength="10" placeholder="JJ/MM/AAAA"></td><td><input class="amount money" type="text" inputmode="decimal" placeholder="Montant à saisir (€)" autocomplete="off"></td><td>Date d’effet personnalisée</td>`;
+  const dateInput=tr.querySelector('.effdate'); attachDateFormatter(dateInput);
   dateInput.addEventListener('input',()=>{tr.dataset.date=dateToISO(dateInput.value);refreshPensionCells();});
-  dateInput.addEventListener('blur',()=>{
-    const iso=dateToISO(dateInput.value);
-    if(iso){tr.dataset.date=iso;tr.querySelector('.pi-note').textContent=`Montant applicable à partir du ${isoToFrench(iso)}`;refreshPensionCells();}
-  });
+  dateInput.addEventListener('blur',()=>{const iso=dateToISO(dateInput.value);if(iso){tr.dataset.date=iso;tr.cells[2].textContent=`Montant applicable à partir du ${isoToFrench(iso)}`;refreshPensionCells();}});
   attachMoneyFormatter(tr.querySelector('.amount'));
-  tr.querySelector('.amount').oninput=()=>refreshPensionCells();
-  tb.appendChild(tr);
-  dateInput.focus();
+  tr.querySelector('.amount').addEventListener('input',()=>refreshPensionCells());
+  tb.appendChild(tr); dateInput.focus();
 }
-$('addPiEffectiveDate')?.addEventListener('click',addPiEffectiveDate);
+if($('addPiEffectiveDate')) $('addPiEffectiveDate').addEventListener('click',addPiEffectiveDate);
 
 function getPeriod(){
   const s=dateToISO($('start').value),e=dateToISO($('end').value);
